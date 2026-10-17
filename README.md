@@ -1,6 +1,6 @@
 # 钉钉 Stream SDK
 
-[English](README.en.md) | **简体中文**
+[English](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/README.en.md) | **简体中文**
 
 ## 技术选型
 
@@ -19,10 +19,6 @@
 - 支持通过 `start()` 在后台启动客户端。
 - 支持优雅关闭：系统 ping 独立于业务处理器及时响应；关闭时最多等待 `shutdown_timeout` 秒处理在途消息，之后取消未完成处理器并释放资源。
 - 支持注入自定义日志实例。
-
-## 客户端生命周期
-
-![客户端生命周期流程图](docs/lifecycle.zh.svg)
 
 ## 安装
 
@@ -145,6 +141,8 @@ SDK 的连接、重连、消息处理和关闭日志会通过该 Loguru logger �
 
 调用 `await client.start()` 会在后台启动连接和重连循环。客户端会为每次连接申请新的 ticket，采用指数退避进行重连，响应 `ping`，并在收到服务端 `disconnect` 通知后重新连接。每个客户端只能启动一次。
 
+![客户端生命周期流程图](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/docs/lifecycle.zh.svg)
+
 ### 优雅关闭
 
 应用检测到退出条件后，在清理路径中调用 `await client.close()`。客户端会停止接收新消息，最多等待 `shutdown_timeout` 秒让正在执行的处理器完成；超时后取消剩余处理器，关闭 WebSocket，并释放 SDK 创建的 HTTP 客户端。`shutdown_timeout` 默认是 30 秒，可在创建 `StreamClient` 时调整。`close()` 可以重复调用。`stop()` 也会请求停止并等待清理；通常在应用退出时使用 `close()`。
@@ -218,4 +216,4 @@ asyncio.run(main())
 
 ## 示例
 
-FastAPI 示例：[在 FastAPI 中使用 `start()`](examples/fastapi_app.py)。
+FastAPI 示例：[在 FastAPI 中使用](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/examples/fastapi_app.py)。

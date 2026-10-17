@@ -1,6 +1,6 @@
 # DingTalk Stream SDK
 
-**English** | [简体中文](README.md)
+**English** | [简体中文](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/README.md)
 
 ## Tech stack
 
@@ -19,10 +19,6 @@
 - Supports starting the client in the background with `start()`.
 - Keeps system pings responsive independently of business handlers. During graceful shutdown, waits up to `shutdown_timeout` for in-flight messages, then cancels unfinished handlers and releases resources.
 - Allows a custom logger instance to be injected.
-
-## Client lifecycle
-
-![Client lifecycle flowchart](docs/lifecycle.en.svg)
 
 ## Installation
 
@@ -145,6 +141,8 @@ Register a message handler with `client.on(topic, handler)`. Use `*` as a fallba
 
 Call `await client.start()` to launch the connection and reconnection loop in the background. The client requests a fresh ticket for each connection, reconnects with exponential backoff, responds to `ping`, and reconnects after receiving the server's `disconnect` notice. Each client can be started only once.
 
+![Client lifecycle flowchart](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/docs/lifecycle.en.svg)
+
 ### Graceful shutdown
 
 When the application detects that it should exit, call `await client.close()` in its cleanup path. The client stops receiving new messages, waits up to `shutdown_timeout` seconds for in-flight handlers, cancels any that remain, closes the WebSocket, and releases the SDK-owned HTTP client. `shutdown_timeout` defaults to 30 seconds and can be changed when creating `StreamClient`. `close()` is safe to call more than once. `stop()` also requests shutdown and waits for cleanup; `close()` is generally the method to use when the application exits.
@@ -218,4 +216,4 @@ Both options perform the same shutdown actions; they differ in what triggers exi
 
 ## Examples
 
-FastAPI example: [use `start()` with FastAPI](examples/fastapi_app.py). 
+FastAPI example: [Using in FastAPI](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/examples/fastapi_app.py). 
