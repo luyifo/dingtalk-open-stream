@@ -1,6 +1,6 @@
 # 钉钉 Stream SDK
 
-[English](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/README.en.md) | **简体中文**
+[English](https://github.com/luyifo/dingtalk-open-stream/blob/main/README.en.md) | **简体中文**
 
 ## 技术选型
 
@@ -216,4 +216,4 @@ asyncio.run(main())
 
 ## 示例
 
-FastAPI 示例：[在 FastAPI 中使用](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/examples/fastapi_app.py)。
+FastAPI 示例：[在 FastAPI 中使用](https://github.com/luyifo/dingtalk-open-stream/blob/main/examples/fastapi_app.py)。

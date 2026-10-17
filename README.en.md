@@ -1,6 +1,6 @@
 # DingTalk Stream SDK
 
-**English** | [简体中文](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/README.md)
+**English** | [简体中文](https://github.com/luyifo/dingtalk-open-stream/blob/main/README.md)
 
 ## Tech stack
 
@@ -216,4 +216,4 @@ Both options perform the same shutdown actions; they differ in what triggers exi
 
 ## Examples
 
-FastAPI example: [Using in FastAPI](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/examples/fastapi_app.py). 
+FastAPI example: [Using in FastAPI](https://github.com/luyifo/dingtalk-open-stream/blob/main/examples/fastapi_app.py). 
