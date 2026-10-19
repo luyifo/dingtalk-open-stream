@@ -1,197 +1,191 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2430" viewBox="0 0 1800 2430" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="3090" viewBox="0 0 2000 3090" role="img" aria-labelledby="title desc">
   <title id="title">StreamClient 生命周期图</title>
-  <desc id="desc">从开始节点向下展示客户端初始化、注册、WebSocket 握手、消息处理、重试和资源清理。并列事件由左向右排列，重试路径重新进入注册请求。</desc>
+  <desc id="desc">客户端注册、连接和持续接收消息。业务消息由 SDK 分发任务并发处理；应用自建后台任务独立管理。所有停止路径统一等待在途 SDK 分发任务，超时请求取消，再释放客户端资源。</desc>
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#475569" />
-    </marker>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L10,5 L0,10 z" fill="#475569" /></marker>
     <style>
       text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #17324d; }
-      .edge { fill: none; stroke: #475569; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
-      .join { fill: none; stroke: #64748b; stroke-width: 2.0; stroke-linecap: round; stroke-linejoin: round; }
+      .edge { fill: none; stroke: #475569; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .join { fill: none; stroke: #475569; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
       .node { fill: #eaf4fc; stroke: #8eb5d1; stroke-width: 1.8; }
       .decision { fill: #f7fbff; stroke: #8eb5d1; stroke-width: 1.8; stroke-dasharray: 6 4; }
-      .terminal { fill: #ffffff; stroke: #5c87a5; stroke-width: 2; }
-      .node-text { font-size: 17px; font-weight: 600; }
-      .small { font-size: 14px; font-weight: 500; }
-      .label { font-size: 14px; font-weight: 600; }
-      .pill { fill: #ffffff; stroke: #cbd8e3; stroke-width: 1; }
+      .terminal { fill: white; stroke: #5c87a5; stroke-width: 2; }
+      .note { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.8; stroke-dasharray: 6 4; }
+      .node-text { font-size: 23px; font-weight: 600; }
+      .small { font-size: 20px; font-weight: 500; }
+      .label { font-size: 20px; font-weight: 600; }
     </style>
   </defs>
-  <rect width="1800" height="2430" fill="#ffffff" />
-
+  <rect width="2000" height="3090" fill="white" />
+  <!-- Line jumps show crossings without a flow junction. -->
   <g aria-hidden="true">
-    <path class="edge" d="M900 86 V115" />
-    <path class="edge" d="M900 183 V225" />
-    <path class="edge" d="M900 293 V335" />
-    <path class="edge" d="M900 411 V455" />
-    <path class="edge" d="M900 533 V590" />
-    <path class="edge" d="M1130 494 H1150" />
-    <path class="join" d="M1600 495 H1760" />
-
-    <path class="join" d="M760 650 H120" />
-    <path class="edge" d="M1040 650 H1230 V780" />
-    <path class="edge" d="M1230 852 V885" />
-    <path class="join" d="M1100 940 H120" />
-    <path class="edge" d="M1230 995 V1160" />
-    <path class="edge" d="M1420 816 H1500 V1030" />
-    <path class="join" d="M1640 1075 H1760" />
-
-    <path class="edge" d="M1230 1232 V1270" />
-    <path class="join" d="M1230 1390 V1450 H300" />
-    <path class="join" d="M1230 1450 H1330" />
-    <path class="edge" d="M300 1450 V1510" />
-    <path class="edge" d="M650 1450 V1510" />
-    <path class="edge" d="M1000 1450 V1510" />
-    <path class="edge" d="M1330 1450 V1510" />
-
-    <path class="join" d="M1000 1620 V1660 H120" />
-    <path class="join" d="M120 650 V1700" />
-    <path class="edge" d="M120 1745 H300" />
-    <path class="edge" d="M510 1790 V1850" />
-    <path class="join" d="M670 1910 H1760 V2140" />
-    <path class="edge" d="M510 1970 V2010 H55 V494 H670" />
-
-    <path class="edge" d="M1330 1620 V1690" />
-    <path class="join" d="M1480 1750 H1760 V2140" />
-    <path class="edge" d="M1180 1750 H900 V1840" />
-    <path class="join" d="M900 1920 V2140" />
-
-    <path class="join" d="M1760 495 V2140" />
-    <path class="join" d="M300 2140 H1760" />
-    <path class="edge" d="M900 2140 V2180" />
-    <path class="edge" d="M900 2270 V2322" />
+    <path class="edge" d="M1000 95 V135" />
+    <path class="edge" d="M1000 215 V245" />
+    <path class="edge" d="M1000 325 V355" />
+    <path class="edge" d="M1000 435 V505" />
+    <path class="edge" d="M1000 595 V645" />
+    <path class="edge" d="M1250 550 H1350" />
+    <path class="edge" d="M800 710 H120 V1900 H220" />
+    <path class="edge" d="M1000 775 V825" />
+    <path class="edge" d="M1000 915 V965" />
+    <path class="edge" d="M1230 870 H1300 V950 H1350" />
+    <path class="edge" d="M800 1030 H120" />
+    <path class="edge" d="M1000 1095 V1145" />
+    <path class="edge" d="M1000 1235 V1270" />
+    <path class="edge" d="M1850 550 H1930 V2300 H1750" />
+    <path class="join" d="M1850 950 H1930" />
+    <path class="join" d="M1000 1410 V1460 H340" />
+    <path class="join" d="M1000 1460 H1680" />
+    <path class="edge" d="M340 1460 V1510" />
+    <path class="edge" d="M790 1460 V1510" />
+    <path class="edge" d="M1230 1460 V1510" />
+    <path class="edge" d="M1680 1460 V1510" />
+    <path class="join" d="M340 1670 V1760 H132 Q120 1742 108 1760 H80" />
+    <path class="edge" d="M790 1670 V1800 H132 Q120 1782 108 1800 H80 V1190 H108 Q120 1172 132 1190 H775" />
+    <path class="join" d="M1230 1670 V1840 H120" />
+    <path class="join" d="M1885 1590 H1930" />
+    <path class="edge" d="M500 1950 V2010" />
+    <path class="join" d="M700 2080 H1930" />
+    <path class="edge" d="M500 2150 V2200 H40 V550 H750" />
+    <path class="edge" d="M1450 2360 V2400" />
+    <path class="edge" d="M1720 2490 H1880 V2840 H1750" />
+    <path class="edge" d="M1450 2580 V2595 H1000 V2630" />
+    <path class="edge" d="M1000 2730 V2840 H1150" />
+    <path class="edge" d="M1450 2900 V2965" />
   </g>
-
-  <g class="labels">
-    <rect class="pill" x="914" y="548" width="152" height="26" rx="13" />
-    <text class="small" x="990" y="566" text-anchor="middle">HTTP 注册完成</text>
-    <rect class="pill" x="565" y="624" width="92" height="26" rx="13" />
-    <text class="label" x="611" y="642" text-anchor="middle">失败</text>
-    <rect class="pill" x="1050" y="624" width="92" height="26" rx="13" />
-    <text class="label" x="1096" y="642" text-anchor="middle">成功</text>
-    <rect class="pill" x="1018" y="912" width="92" height="26" rx="13" />
-    <text class="label" x="1064" y="930" text-anchor="middle">失败</text>
-    <rect class="pill" x="1242" y="1005" width="92" height="26" rx="13" />
-    <text class="label" x="1288" y="1023" text-anchor="middle">成功</text>
-
-    <rect class="pill" x="246" y="1410" width="108" height="26" rx="13" />
-    <text class="small" x="300" y="1428" text-anchor="middle">SYSTEM ping</text>
-    <rect class="pill" x="595" y="1410" width="110" height="26" rx="13" />
-    <text class="small" x="650" y="1428" text-anchor="middle">业务消息</text>
-    <rect class="pill" x="899" y="1410" width="202" height="26" rx="13" />
-    <text class="small" x="1000" y="1428" text-anchor="middle">disconnect / 连接中断</text>
-    <rect class="pill" x="1270" y="1410" width="120" height="26" rx="13" />
-    <text class="small" x="1330" y="1428" text-anchor="middle">stop() / close()</text>
-
-    <rect class="pill" x="1478" y="1722" width="52" height="26" rx="13" />
-    <text class="label" x="1504" y="1740" text-anchor="middle">是</text>
-    <rect class="pill" x="1080" y="1722" width="52" height="26" rx="13" />
-    <text class="label" x="1106" y="1740" text-anchor="middle">否</text>
-    <rect class="pill" x="728" y="1880" width="52" height="26" rx="13" />
-    <text class="label" x="754" y="1898" text-anchor="middle">是</text>
-    <rect class="pill" x="240" y="1980" width="262" height="26" rx="13" />
-    <text class="small" x="371" y="1998" text-anchor="middle">否：退避结束，重新申请 ticket</text>
+  <g><rect x="689" y="671" width="62" height="30" rx="12" fill="white" /><text class="label" x="720" y="693" text-anchor="middle">失败</text></g>
+  <g><rect x="1054" y="785" width="62" height="30" rx="12" fill="white" /><text class="label" x="1085" y="807" text-anchor="middle">成功</text></g>
+  <g><rect x="689" y="991" width="62" height="30" rx="12" fill="white" /><text class="label" x="720" y="1013" text-anchor="middle">失败</text></g>
+  <g><rect x="1054" y="1106" width="62" height="30" rx="12" fill="white" /><text class="label" x="1085" y="1128" text-anchor="middle">成功</text></g>
+  <g><rect x="223.5" y="1418" width="233" height="30" rx="12" fill="white" /><text class="label" x="340" y="1440" text-anchor="middle">SYSTEM ping</text></g>
+  <g><rect x="740" y="1418" width="100" height="30" rx="12" fill="white" /><text class="label" x="790" y="1440" text-anchor="middle">业务消息</text></g>
+  <g><rect x="1056.5" y="1418" width="347" height="30" rx="12" fill="white" /><text class="label" x="1230" y="1440" text-anchor="middle">disconnect / 连接中断</text></g>
+  <g><rect x="1516" y="1418" width="328" height="30" rx="12" fill="white" /><text class="label" x="1680" y="1440" text-anchor="middle">stop() / close()</text></g>
+  <g><rect x="375" y="1718" width="100" height="30" rx="12" fill="white" /><text class="label" x="425" y="1740" text-anchor="middle">继续接收</text></g>
+  <g><rect x="570" y="1758" width="100" height="30" rx="12" fill="white" /><text class="label" x="620" y="1780" text-anchor="middle">继续接收</text></g>
+  <g><rect x="743.5" y="2043" width="43" height="30" rx="12" fill="white" /><text class="label" x="765" y="2065" text-anchor="middle">是</text></g>
+  <g><rect x="277" y="2160" width="366" height="30" rx="12" fill="white" /><text class="label" x="460" y="2182" text-anchor="middle">否：退避结束，重新申请 ticket</text></g>
+  <g><rect x="1718.5" y="2448" width="43" height="30" rx="12" fill="white" /><text class="label" x="1740" y="2470" text-anchor="middle">是</text></g>
+  <g><rect x="1488.5" y="2578" width="43" height="30" rx="12" fill="white" /><text class="label" x="1510" y="2600" text-anchor="middle">否</text></g>
+  <g id="start" text-anchor="middle">
+    <rect class="terminal" x="920" y="35" width="160" height="60" rx="30" />
+    <text class="node-text" x="1000" y="73">开始</text>
   </g>
-
-  <g class="nodes" text-anchor="middle">
-    <circle class="terminal" cx="900" cy="50" r="36" />
-    <text class="node-text" x="900" y="56">开始</text>
-
-    <rect class="node" x="680" y="115" width="440" height="68" rx="14" />
-    <text class="node-text" x="900" y="156">创建 StreamClient</text>
-
-    <rect class="node" x="680" y="225" width="440" height="68" rx="14" />
-    <text class="node-text" x="900" y="266">注册消息处理器</text>
-
-    <rect class="node" x="620" y="335" width="560" height="76" rx="14" />
-    <text class="node-text" x="900" y="366">
-      <tspan x="900">通过 start() 在后台启动客户端</tspan>
-    </text>
-
-    <rect class="node" x="670" y="455" width="460" height="78" rx="14" />
-    <text class="node-text" x="900" y="501">注册连接并获取 ticket</text>
-
-    <rect class="node" x="1150" y="450" width="450" height="90" rx="14" />
-    <text class="node-text" x="1375" y="482">
-      <tspan x="1375">取消注册请求</tspan>
-      <tspan class="small" x="1375" dy="22">HTTP 注册未完成时调用 stop/close</tspan>
-    </text>
-
-    <polygon class="decision" points="900,590 1040,650 900,710 760,650" />
-    <text class="node-text" x="900" y="656">注册成功？</text>
-
-    <rect class="node" x="1040" y="780" width="380" height="72" rx="14" />
-    <text class="node-text" x="1230" y="823">建立 WebSocket</text>
-
-    <polygon class="decision" points="1230,885 1360,940 1230,995 1100,940" />
-    <text class="node-text" x="1230" y="946">握手成功？</text>
-
-    <rect class="node" x="1360" y="1030" width="280" height="90" rx="14" />
-    <text class="node-text" x="1500" y="1064">
-      <tspan x="1500">取消 WebSocket 握手</tspan>
-      <tspan class="small" x="1500" dy="22">握手完成前调用 stop/close</tspan>
-    </text>
-
-    <rect class="node" x="1010" y="1160" width="440" height="72" rx="14" />
-    <text class="node-text" x="1230" y="1203">接收并分发消息</text>
-
-    <polygon class="decision" points="1230,1270 1380,1330 1230,1390 1080,1330" />
-    <text class="node-text" x="1230" y="1336">运行期间发生什么？</text>
-
-    <rect class="node" x="150" y="1510" width="300" height="110" rx="14" />
-    <text class="node-text" x="300" y="1550">
-      <tspan x="300">在读取循环中立即回复</tspan>
-      <tspan x="300" dy="24">System ACK，然后继续接收</tspan>
-    </text>
-
-    <rect class="node" x="485" y="1510" width="330" height="110" rx="14" />
-    <text class="node-text" x="650" y="1550">
-      <tspan x="650">并发执行业务 handler</tspan>
-      <tspan x="650" dy="24">处理完成后发送协议 ACK</tspan>
-    </text>
-
-    <rect class="node" x="835" y="1510" width="330" height="110" rx="14" />
-    <text class="node-text" x="1000" y="1550">
-      <tspan x="1000">取消旧连接的在途 handler</tspan>
-      <tspan x="1000" dy="24">进入共享退避重连流程</tspan>
-    </text>
-
-    <rect class="node" x="1180" y="1510" width="300" height="110" rx="14" />
-    <text class="node-text" x="1330" y="1550">
-      <tspan x="1330">停止接收新消息</tspan>
-      <tspan x="1330" dy="24">等待在途 handler 完成</tspan>
-    </text>
-
-    <rect class="node" x="300" y="1700" width="420" height="90" rx="14" />
-    <text class="node-text" x="510" y="1737">
-      <tspan x="510">共享指数退避等待</tspan>
-      <tspan class="small" x="510" dy="23">注册失败、握手失败或连接中断</tspan>
-    </text>
-
-    <polygon class="decision" points="510,1850 670,1910 510,1970 350,1910" />
-    <text class="node-text" x="510" y="1905">
-      <tspan x="510">退避期间收到</tspan>
-      <tspan x="510" dy="22">stop/close？</tspan>
-    </text>
-
-    <polygon class="decision" points="1330,1690 1480,1750 1330,1810 1180,1750" />
-    <text class="node-text" x="1330" y="1735">
-      <tspan x="1330">handler 是否在</tspan>
-      <tspan class="small" x="1330" dy="21">shutdown_timeout（默认30秒）</tspan>
-      <tspan x="1330" dy="22">内完成？</tspan>
-    </text>
-
-    <rect class="node" x="730" y="1840" width="340" height="80" rx="14" />
-    <text class="node-text" x="900" y="1888">取消超时未完成的 handler</text>
-
-    <rect class="node" x="650" y="2180" width="500" height="90" rx="14" />
-    <text class="node-text" x="900" y="2217">
-      <tspan x="900">关闭 WebSocket（若已建立）</tspan>
-      <tspan x="900" dy="24">关闭 SDK 创建的 HTTP 客户端</tspan>
-    </text>
-
-    <circle class="terminal" cx="900" cy="2360" r="38" />
-    <text class="node-text" x="900" y="2366">结束</text>
+  <g id="create" text-anchor="middle">
+    <rect class="node" x="750" y="135" width="500" height="80" rx="16" />
+    <text class="node-text" x="1000" y="183">创建 StreamClient</text>
   </g>
+  <g id="handlers" text-anchor="middle">
+    <rect class="node" x="750" y="245" width="500" height="80" rx="16" />
+    <text class="node-text" x="1000" y="293">注册消息处理器</text>
+  </g>
+  <g id="launch" text-anchor="middle">
+    <rect class="node" x="650" y="355" width="700" height="80" rx="16" />
+    <text class="node-text" x="1000" y="403">通过 start() 在后台启动客户端</text>
+  </g>
+  <g id="register" text-anchor="middle">
+    <rect class="node" x="750" y="505" width="500" height="90" rx="16" />
+    <text class="node-text" x="1000" y="558">注册连接并获取新 ticket</text>
+  </g>
+  <g id="cancel-register" text-anchor="middle">
+    <rect class="node" x="1350" y="500" width="500" height="100" rx="16" />
+    <text class="node-text" x="1600" y="542.5">取消未完成的注册请求</text>
+    <text class="small" x="1600" y="573.5">注册期间收到 stop() / close()</text>
+  </g>
+  <g id="registered" text-anchor="middle">
+    <polygon class="decision" points="1000,645 1200,710 1000,775 800,710" />
+    <text class="node-text" x="1000" y="718">注册成功？</text>
+  </g>
+  <g id="connect" text-anchor="middle">
+    <rect class="node" x="770" y="825" width="460" height="90" rx="16" />
+    <text class="node-text" x="1000" y="878">建立 WebSocket</text>
+  </g>
+  <g id="cancel-connect" text-anchor="middle">
+    <rect class="node" x="1350" y="887.5" width="500" height="125" rx="16" />
+    <text class="node-text" x="1600" y="927">取消未完成的握手</text>
+    <text class="small" x="1600" y="958">握手期间收到 stop() / close()</text>
+    <text class="small" x="1600" y="989">若连接已建立，则关闭该连接</text>
+  </g>
+  <g id="connected" text-anchor="middle">
+    <polygon class="decision" points="1000,965 1200,1030 1000,1095 800,1030" />
+    <text class="node-text" x="1000" y="1038">握手成功？</text>
+  </g>
+  <g id="receive" text-anchor="middle">
+    <rect class="node" x="775" y="1145" width="450" height="90" rx="16" />
+    <text class="node-text" x="1000" y="1198">接收消息（读取循环）</text>
+  </g>
+  <g id="runtime" text-anchor="middle">
+    <polygon class="decision" points="1000,1270 1250,1340 1000,1410 750,1340" />
+    <text class="node-text" x="1000" y="1348">运行期间发生什么？</text>
+  </g>
+  <g id="ping" text-anchor="middle">
+    <rect class="node" x="135" y="1510" width="410" height="160" rx="16" />
+    <text class="node-text" x="340" y="1582.5">在读取循环中回复 ping</text>
+    <text class="node-text" x="340" y="1613.5">回传 opaque 数据</text>
+  </g>
+  <g id="business" text-anchor="middle">
+    <rect class="node" x="565" y="1510" width="450" height="160" rx="16" />
+    <text class="node-text" x="790" y="1551.5">创建并登记 SDK 分发任务</text>
+    <text class="node-text" x="790" y="1582.5">读取循环继续接收</text>
+    <text class="small" x="790" y="1613.5">任务中调用／等待 handler</text>
+    <text class="small" x="790" y="1644.5">返回 Ack 后在原连接尝试发送</text>
+  </g>
+  <g id="disconnect" text-anchor="middle">
+    <rect class="node" x="1025" y="1510" width="410" height="160" rx="16" />
+    <text class="node-text" x="1230" y="1582.5">保留在途 SDK 分发任务</text>
+    <text class="node-text" x="1230" y="1613.5">关闭旧连接，进入重连</text>
+  </g>
+  <g id="stop" text-anchor="middle">
+    <rect class="node" x="1475" y="1510" width="410" height="160" rx="16" />
+    <text class="node-text" x="1680" y="1582.5">请求停止接收新消息</text>
+    <text class="node-text" x="1680" y="1613.5">进入统一清理流程</text>
+  </g>
+  <g id="backoff" text-anchor="middle">
+    <rect class="node" x="220" y="1850" width="560" height="100" rx="16" />
+    <text class="node-text" x="500" y="1892.5">共享指数退避（含随机抖动）</text>
+    <text class="small" x="500" y="1923.5">注册失败、握手失败或连接中断</text>
+  </g>
+  <g id="backoff-stop" text-anchor="middle">
+    <polygon class="decision" points="500,2010 700,2080 500,2150 300,2080" />
+    <text class="small" x="500" y="2072.5">退避期间收到</text>
+    <text class="small" x="500" y="2103.5">stop() / close()？</text>
+  </g>
+  <g id="cleanup" text-anchor="middle">
+    <rect class="node" x="1150" y="2240" width="600" height="120" rx="16" />
+    <text class="node-text" x="1450" y="2277">统一清理：停止接收新消息</text>
+    <text class="small" x="1450" y="2308">等待全部在途 SDK 分发任务（含 ACK 发送）</text>
+    <text class="small" x="1450" y="2339">包括重连前旧连接留下的分发任务</text>
+  </g>
+  <g id="drained" text-anchor="middle">
+    <polygon class="decision" points="1450,2400 1720,2490 1450,2580 1180,2490" />
+    <text class="small" x="1450" y="2467">SDK 分发任务是否在</text>
+    <text class="small" x="1450" y="2498">shutdown_timeout 内完成？</text>
+    <text class="small" x="1450" y="2529">默认 30 秒</text>
+  </g>
+  <g id="cancel" text-anchor="middle">
+    <rect class="node" x="750" y="2630" width="500" height="100" rx="16" />
+    <text class="node-text" x="1000" y="2657">请求取消剩余分发任务</text>
+    <text class="small" x="1000" y="2688">短暂等待协作式取消</text>
+    <text class="small" x="1000" y="2719">仍未结束则记录日志，继续释放资源</text>
+  </g>
+  <g id="resources" text-anchor="middle">
+    <rect class="node" x="1150" y="2780" width="600" height="120" rx="16" />
+    <text class="node-text" x="1450" y="2832.5">关闭 WebSocket（若仍存在）</text>
+    <text class="node-text" x="1450" y="2863.5">关闭 SDK 创建的 HTTP 客户端</text>
+  </g>
+  <g id="end" text-anchor="middle">
+    <rect class="terminal" x="1240" y="2965" width="420" height="70" rx="35" />
+    <text class="node-text" x="1450" y="3008">客户端关闭完成</text>
+  </g>
+  <g id="ownership" text-anchor="middle">
+    <rect class="note" x="150" y="2345" width="700" height="250" rx="16" />
+    <text class="node-text" x="500" y="2385">应用后台业务：独立生命周期</text>
+    <text class="small" x="500" y="2416">handler 自建任务不属于 SDK 分发任务集合。</text>
+    <text class="small" x="500" y="2447">SDK 不等待或取消这些任务；由应用自行管理。</text>
+    <text class="small" x="500" y="2478">示例在 client.close() 后退出 TaskGroup。</text>
+    <text class="small" x="500" y="2509">正常退出时，TaskGroup 等待后台业务结束。</text>
+    <text class="small" x="500" y="2540">业务资源应在后台业务结束后释放。</text>
+    <text class="small" x="500" y="2571">异常或取消退出 TaskGroup 时会取消剩余任务。</text>
+  </g>
+  <text class="small" x="1450" y="3070" text-anchor="middle">shutdown_timeout 仅限制等待阶段；取消和资源释放另需时间。</text>
 </svg>

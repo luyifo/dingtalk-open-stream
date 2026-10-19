@@ -13,11 +13,10 @@
 
 - 通过 HTTP 注册 Stream 连接，并使用一次性 ticket 建立 WebSocket 长连接。
 - 默认订阅开发者后台已配置的全部事件，以及机器人消息回调；也支持通过 `Subscription` 自定义订阅 topic。
-- 支持为不同 topic 注册同步或异步消息处理器，并使用 `*` 注册兜底处理器；默认最多并发处理 100 条业务消息，可通过 `max_concurrent_handlers` 调整。
-- 自动生成并发送协议 ACK；事件处理成功返回 `SUCCESS`，处理失败返回 `LATER`。
+- 支持为不同 topic 注册异步消息处理器，并使用 `*` 注册兜底处理器。
 - 自动响应系统 `ping`，并在收到 `disconnect` 或连接中断后申请新 ticket 重连；重连采用带随机抖动的指数退避。
 - 支持通过 `start()` 在后台启动客户端。
-- 支持优雅关闭：系统 ping 独立于业务处理器及时响应；关闭时最多等待 `shutdown_timeout` 秒处理在途消息，之后取消未完成处理器并释放资源。
+- 支持优雅关闭：关闭时最多等待 `shutdown_timeout` 秒让直接执行的异步处理器完成，之后取消未完成任务并释放资源。
 - 支持注入自定义日志实例。
 
 ## 安装
@@ -42,7 +41,7 @@ pip install dingtalk-open-stream
 
 ## 接收机器人消息和事件
 
-先创建客户端并注册机器人消息和事件处理器。启动与优雅关闭方式见下方[生命周期与优雅关闭](#生命周期与优雅关闭)。
+推荐让 `async def` 处理器将业务提交到应用管理的后台任务后立即返回 `Ack.ok()`，SDK 随即回复，耗时的异步业务独立执行。下面通过 `TaskGroup` 管理后台任务，在 `TODO` 处填写异步业务逻辑。启动与优雅关闭方式见下方[生命周期与优雅关闭](#生命周期与优雅关闭)。
 
 ```python
 import asyncio
@@ -56,35 +55,42 @@ logging.basicConfig(level=logging.INFO)
 
 async def main() -> None:
     app_logger = logging.getLogger("my-app.dingtalk-stream")
-    client = StreamClient(
-        client_id="你的应用 Client ID",
-        client_secret="你的应用 Client Secret",
-        logger=app_logger,
-    )
 
-    async def on_bot_message(message: Message) -> Ack:
-        print(message.data)
-        return Ack.ok()
+    async with asyncio.TaskGroup() as background:
+        client = StreamClient(
+            client_id="你的应用 Client ID",
+            client_secret="你的应用 Client Secret",
+            logger=app_logger,
+        )
 
-    async def on_event(message: Message) -> Ack:
-        print(message.headers.get("eventType"), message.data)
-        return Ack.ok()
-
-    client.on("/v1.0/im/bot/messages/get", on_bot_message)
-    client.on("*", on_event)
-
-    loop = asyncio.get_running_loop()
-    stopping = asyncio.Event()
-    try:
-        for sig in (signal.SIGINT, signal.SIGTERM):
+        async def process_message(message: Message) -> None:
             try:
-                loop.add_signal_handler(sig, stopping.set)
-            except NotImplementedError:  # 部分 Windows 事件循环不支持此接口。
+                # TODO: do something with message.data.
                 pass
-        await client.start()
-        await stopping.wait()
-    finally:
-        await client.close()
+            except Exception:
+                app_logger.exception(
+                    "后台业务处理失败，message_id=%s", message.message_id
+                )
+
+        async def on_message(message: Message) -> Ack:
+            background.create_task(process_message(message))
+            return Ack.ok()
+
+        client.on("/v1.0/im/bot/messages/get", on_message)
+        client.on("*", on_message)
+
+        loop = asyncio.get_running_loop()
+        stopping = asyncio.Event()
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(sig, stopping.set)
+                except NotImplementedError:  # 部分 Windows 事件循环不支持此接口。
+                    pass
+            await client.start()
+            await stopping.wait()
+        finally:
+            await client.close()
 
 
 asyncio.run(main())
@@ -133,7 +139,7 @@ SDK 的连接、重连、消息处理和关闭日志会通过该 Loguru logger �
 
 `Topic` 是 topic 字符串的公开类型别名。`client.on()` 会为 `*`、机器人消息回调和卡片回调提供类型提示；`KnownTopic` 描述这些已知选项，同时仍接受自定义字符串 topic。
 
-使用 `client.on(topic, handler)` 注册消息处理器；`*` 可作为未匹配 topic 的兜底处理器。处理器可以是同步或异步函数，并可返回 `Ack.ok(...)` 或 `Ack.later(...)`。业务处理器以受限并发方式运行，默认并发上限为 100，可通过 `max_concurrent_handlers` 调整。达到上限时，消息会收到 `LATER` ACK。注意：并发处理时，不同消息的处理完成顺序不保证与接收顺序一致。事件处理成功时，SDK 回复包含 `status: SUCCESS` 的 ACK；处理器发生异常时，SDK 会记录异常并回复 `status: LATER`，以便钉钉重试事件。
+使用 `client.on(topic, handler)` 注册消息处理器；`*` 可作为未匹配 topic 的兜底处理器。处理器必须返回 `Ack`，SDK 随即发送该确认。推荐按上例只在处理器中提交后台任务并快速返回，将异步业务及失败恢复交给应用管理；EVENT 可能重推，业务可按 `eventId` 实现幂等。
 
 ## 生命周期与优雅关闭
 
@@ -141,11 +147,13 @@ SDK 的连接、重连、消息处理和关闭日志会通过该 Loguru logger �
 
 调用 `await client.start()` 会在后台启动连接和重连循环。客户端会为每次连接申请新的 ticket，采用指数退避进行重连，响应 `ping`，并在收到服务端 `disconnect` 通知后重新连接。每个客户端只能启动一次。
 
+连接中断或正常轮换重连时，在途异步处理器会继续执行。取消 `wait_closed()` 的等待者不会停止后台客户端；取消 `stop()` 或 `close()` 的等待者也不会中断已经请求的关闭与清理。
+
 ![客户端生命周期流程图](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/docs/lifecycle.zh.svg)
 
 ### 优雅关闭
 
-应用检测到退出条件后，在清理路径中调用 `await client.close()`。客户端会停止接收新消息，最多等待 `shutdown_timeout` 秒让正在执行的处理器完成；超时后取消剩余处理器，关闭 WebSocket，并释放 SDK 创建的 HTTP 客户端。`shutdown_timeout` 默认是 30 秒，可在创建 `StreamClient` 时调整。`close()` 可以重复调用。`stop()` 也会请求停止并等待清理；通常在应用退出时使用 `close()`。
+应用检测到退出条件后，在清理路径中调用 `await client.close()`。客户端会停止接收新消息，最多等待 `shutdown_timeout` 秒让直接等待的异步处理器完成；超时后取消这些分发任务，关闭 WebSocket，并释放 SDK 创建的 HTTP 客户端。此等待不包含应用自行创建的后台任务；上例在客户端关闭后退出 `TaskGroup`，正常退出时等待后台业务完成。`shutdown_timeout` 默认是 30 秒，可在创建 `StreamClient` 时调整。`close()` 可以重复调用。`stop()` 也会请求停止并等待清理；通常在应用退出时使用 `close()`。
 
 下面两种方式的区别在于如何检测退出条件；客户端执行的关闭流程相同。
 
@@ -216,4 +224,4 @@ asyncio.run(main())
 
 ## 示例
 
-FastAPI 示例：[在 FastAPI 中使用](https://github.com/luyifo/dingtalk-open-stream/blob/main/examples/fastapi_app.py)。
+FastAPI 示例：[在 FastAPI 中使用](https://github.com/luyifo/dingtalk-open-stream/blob/main/examples/fastapi_app.py)。运行前设置环境变量 `DINGTALK_CLIENT_ID` 和 `DINGTALK_CLIENT_SECRET`。

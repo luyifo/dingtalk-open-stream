@@ -1,197 +1,191 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2430" viewBox="0 0 1800 2430" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="3090" viewBox="0 0 2000 3090" role="img" aria-labelledby="title desc">
   <title id="title">StreamClient lifecycle</title>
-  <desc id="desc">The flow proceeds from top to bottom. Parallel events are arranged from left to right, and retry paths return to the registration request.</desc>
+  <desc id="desc">Registration, connection and continuous message reception. SDK dispatch tasks handle business messages concurrently; application background tasks are independently managed. Every stop path drains SDK dispatch tasks, requests cancellation on timeout, then releases client resources.</desc>
   <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#475569" />
-    </marker>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L10,5 L0,10 z" fill="#475569" /></marker>
     <style>
-      text { font-family: Arial, "Segoe UI", sans-serif; fill: #17324d; }
-      .edge { fill: none; stroke: #475569; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
-      .join { fill: none; stroke: #64748b; stroke-width: 2.0; stroke-linecap: round; stroke-linejoin: round; }
+      text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #17324d; }
+      .edge { fill: none; stroke: #475569; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .join { fill: none; stroke: #475569; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
       .node { fill: #eaf4fc; stroke: #8eb5d1; stroke-width: 1.8; }
       .decision { fill: #f7fbff; stroke: #8eb5d1; stroke-width: 1.8; stroke-dasharray: 6 4; }
-      .terminal { fill: #ffffff; stroke: #5c87a5; stroke-width: 2; }
-      .node-text { font-size: 16px; font-weight: 600; }
-      .small { font-size: 13px; font-weight: 500; }
-      .label { font-size: 14px; font-weight: 600; }
-      .pill { fill: #ffffff; stroke: #cbd8e3; stroke-width: 1; }
+      .terminal { fill: white; stroke: #5c87a5; stroke-width: 2; }
+      .note { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.8; stroke-dasharray: 6 4; }
+      .node-text { font-size: 21px; font-weight: 600; }
+      .small { font-size: 18px; font-weight: 500; }
+      .label { font-size: 20px; font-weight: 600; }
     </style>
   </defs>
-  <rect width="1800" height="2430" fill="#ffffff" />
-
+  <rect width="2000" height="3090" fill="white" />
+  <!-- Line jumps show crossings without a flow junction. -->
   <g aria-hidden="true">
-    <path class="edge" d="M900 86 V115" />
-    <path class="edge" d="M900 183 V225" />
-    <path class="edge" d="M900 293 V335" />
-    <path class="edge" d="M900 411 V455" />
-    <path class="edge" d="M900 533 V590" />
-    <path class="edge" d="M1130 494 H1150" />
-    <path class="join" d="M1600 495 H1760" />
-
-    <path class="join" d="M760 650 H120" />
-    <path class="edge" d="M1040 650 H1230 V780" />
-    <path class="edge" d="M1230 852 V885" />
-    <path class="join" d="M1100 940 H120" />
-    <path class="edge" d="M1230 995 V1160" />
-    <path class="edge" d="M1420 816 H1500 V1030" />
-    <path class="join" d="M1640 1075 H1760" />
-
-    <path class="edge" d="M1230 1232 V1270" />
-    <path class="join" d="M1230 1390 V1450 H300" />
-    <path class="join" d="M1230 1450 H1330" />
-    <path class="edge" d="M300 1450 V1510" />
-    <path class="edge" d="M650 1450 V1510" />
-    <path class="edge" d="M1000 1450 V1510" />
-    <path class="edge" d="M1330 1450 V1510" />
-
-    <path class="join" d="M1000 1620 V1660 H120" />
-    <path class="join" d="M120 650 V1700" />
-    <path class="edge" d="M120 1745 H300" />
-    <path class="edge" d="M510 1790 V1850" />
-    <path class="join" d="M670 1910 H1760 V2140" />
-    <path class="edge" d="M510 1970 V2010 H55 V494 H670" />
-
-    <path class="edge" d="M1330 1620 V1690" />
-    <path class="join" d="M1480 1750 H1760 V2140" />
-    <path class="edge" d="M1180 1750 H900 V1840" />
-    <path class="join" d="M900 1920 V2140" />
-
-    <path class="join" d="M1760 495 V2140" />
-    <path class="join" d="M300 2140 H1760" />
-    <path class="edge" d="M900 2140 V2180" />
-    <path class="edge" d="M900 2270 V2322" />
+    <path class="edge" d="M1000 95 V135" />
+    <path class="edge" d="M1000 215 V245" />
+    <path class="edge" d="M1000 325 V355" />
+    <path class="edge" d="M1000 435 V505" />
+    <path class="edge" d="M1000 595 V645" />
+    <path class="edge" d="M1250 550 H1350" />
+    <path class="edge" d="M800 710 H120 V1900 H220" />
+    <path class="edge" d="M1000 775 V825" />
+    <path class="edge" d="M1000 915 V965" />
+    <path class="edge" d="M1230 870 H1300 V950 H1350" />
+    <path class="edge" d="M800 1030 H120" />
+    <path class="edge" d="M1000 1095 V1145" />
+    <path class="edge" d="M1000 1235 V1270" />
+    <path class="edge" d="M1850 550 H1930 V2300 H1750" />
+    <path class="join" d="M1850 950 H1930" />
+    <path class="join" d="M1000 1410 V1460 H340" />
+    <path class="join" d="M1000 1460 H1680" />
+    <path class="edge" d="M340 1460 V1510" />
+    <path class="edge" d="M790 1460 V1510" />
+    <path class="edge" d="M1230 1460 V1510" />
+    <path class="edge" d="M1680 1460 V1510" />
+    <path class="join" d="M340 1670 V1760 H132 Q120 1742 108 1760 H80" />
+    <path class="edge" d="M790 1670 V1800 H132 Q120 1782 108 1800 H80 V1190 H108 Q120 1172 132 1190 H775" />
+    <path class="join" d="M1230 1670 V1840 H120" />
+    <path class="join" d="M1885 1590 H1930" />
+    <path class="edge" d="M500 1950 V2010" />
+    <path class="join" d="M700 2080 H1930" />
+    <path class="edge" d="M500 2150 V2200 H40 V550 H750" />
+    <path class="edge" d="M1450 2360 V2400" />
+    <path class="edge" d="M1720 2490 H1880 V2840 H1750" />
+    <path class="edge" d="M1450 2580 V2595 H1000 V2630" />
+    <path class="edge" d="M1000 2730 V2840 H1150" />
+    <path class="edge" d="M1450 2900 V2965" />
   </g>
-
-  <g class="labels">
-    <rect class="pill" x="914" y="548" width="152" height="26" rx="13" />
-    <text class="small" x="990" y="566" text-anchor="middle">HTTP response received</text>
-    <rect class="pill" x="565" y="624" width="92" height="26" rx="13" />
-    <text class="label" x="611" y="642" text-anchor="middle">Failed</text>
-    <rect class="pill" x="1050" y="624" width="92" height="26" rx="13" />
-    <text class="label" x="1096" y="642" text-anchor="middle">Succeeded</text>
-    <rect class="pill" x="1018" y="912" width="92" height="26" rx="13" />
-    <text class="label" x="1064" y="930" text-anchor="middle">Failed</text>
-    <rect class="pill" x="1242" y="1005" width="92" height="26" rx="13" />
-    <text class="label" x="1288" y="1023" text-anchor="middle">Succeeded</text>
-
-    <rect class="pill" x="246" y="1410" width="108" height="26" rx="13" />
-    <text class="small" x="300" y="1428" text-anchor="middle">SYSTEM ping</text>
-    <rect class="pill" x="595" y="1410" width="110" height="26" rx="13" />
-    <text class="small" x="650" y="1428" text-anchor="middle">Business message</text>
-    <rect class="pill" x="899" y="1410" width="202" height="26" rx="13" />
-    <text class="small" x="1000" y="1428" text-anchor="middle">disconnect / connection lost</text>
-    <rect class="pill" x="1270" y="1410" width="120" height="26" rx="13" />
-    <text class="small" x="1330" y="1428" text-anchor="middle">stop() / close()</text>
-
-    <rect class="pill" x="1478" y="1722" width="52" height="26" rx="13" />
-    <text class="label" x="1504" y="1740" text-anchor="middle">Yes</text>
-    <rect class="pill" x="1080" y="1722" width="52" height="26" rx="13" />
-    <text class="label" x="1106" y="1740" text-anchor="middle">No</text>
-    <rect class="pill" x="728" y="1880" width="52" height="26" rx="13" />
-    <text class="label" x="754" y="1898" text-anchor="middle">Yes</text>
-    <rect class="pill" x="240" y="1980" width="262" height="26" rx="13" />
-    <text class="small" x="371" y="1998" text-anchor="middle">No: retry with a fresh ticket</text>
+  <g><rect x="675" y="671" width="90" height="30" rx="12" fill="white" /><text class="label" x="720" y="693" text-anchor="middle">Failed</text></g>
+  <g><rect x="1023.5" y="785" width="123" height="30" rx="12" fill="white" /><text class="label" x="1085" y="807" text-anchor="middle">Succeeded</text></g>
+  <g><rect x="675" y="991" width="90" height="30" rx="12" fill="white" /><text class="label" x="720" y="1013" text-anchor="middle">Failed</text></g>
+  <g><rect x="1023.5" y="1106" width="123" height="30" rx="12" fill="white" /><text class="label" x="1085" y="1128" text-anchor="middle">Succeeded</text></g>
+  <g><rect x="267.5" y="1418" width="145" height="30" rx="12" fill="white" /><text class="label" x="340" y="1440" text-anchor="middle">SYSTEM ping</text></g>
+  <g><rect x="690" y="1418" width="200" height="30" rx="12" fill="white" /><text class="label" x="790" y="1440" text-anchor="middle">Business message</text></g>
+  <g><rect x="1064" y="1418" width="332" height="30" rx="12" fill="white" /><text class="label" x="1230" y="1440" text-anchor="middle">disconnect / connection lost</text></g>
+  <g><rect x="1580" y="1418" width="200" height="30" rx="12" fill="white" /><text class="label" x="1680" y="1440" text-anchor="middle">stop() / close()</text></g>
+  <g><rect x="314" y="1718" width="222" height="30" rx="12" fill="white" /><text class="label" x="425" y="1740" text-anchor="middle">Continue receiving</text></g>
+  <g><rect x="509" y="1758" width="222" height="30" rx="12" fill="white" /><text class="label" x="620" y="1780" text-anchor="middle">Continue receiving</text></g>
+  <g><rect x="736.5" y="2043" width="57" height="30" rx="12" fill="white" /><text class="label" x="765" y="2065" text-anchor="middle">Yes</text></g>
+  <g><rect x="228" y="2160" width="464" height="30" rx="12" fill="white" /><text class="label" x="460" y="2182" text-anchor="middle">No: backoff ends; request a fresh ticket</text></g>
+  <g><rect x="1711.5" y="2448" width="57" height="30" rx="12" fill="white" /><text class="label" x="1740" y="2470" text-anchor="middle">Yes</text></g>
+  <g><rect x="1487" y="2578" width="46" height="30" rx="12" fill="white" /><text class="label" x="1510" y="2600" text-anchor="middle">No</text></g>
+  <g id="start" text-anchor="middle">
+    <rect class="terminal" x="920" y="35" width="160" height="60" rx="30" />
+    <text class="node-text" x="1000" y="73">Start</text>
   </g>
-
-  <g class="nodes" text-anchor="middle">
-    <circle class="terminal" cx="900" cy="50" r="36" />
-    <text class="node-text" x="900" y="56">Start</text>
-
-    <rect class="node" x="680" y="115" width="440" height="68" rx="14" />
-    <text class="node-text" x="900" y="156">Create StreamClient</text>
-
-    <rect class="node" x="680" y="225" width="440" height="68" rx="14" />
-    <text class="node-text" x="900" y="266">Register message handlers</text>
-
-    <rect class="node" x="620" y="335" width="560" height="76" rx="14" />
-    <text class="node-text" x="900" y="366">
-      <tspan x="900">Start the client in the background with start()</tspan>
-    </text>
-
-    <rect class="node" x="670" y="455" width="460" height="78" rx="14" />
-    <text class="node-text" x="900" y="501">Register connection and request ticket</text>
-
-    <rect class="node" x="1150" y="450" width="450" height="90" rx="14" />
-    <text class="node-text" x="1375" y="482">
-      <tspan x="1375">Cancel registration request</tspan>
-      <tspan class="small" x="1375" dy="22">stop/close before HTTP registration completes</tspan>
-    </text>
-
-    <polygon class="decision" points="900,590 1040,650 900,710 760,650" />
-    <text class="node-text" x="900" y="656">Registration succeeded?</text>
-
-    <rect class="node" x="1040" y="780" width="380" height="72" rx="14" />
-    <text class="node-text" x="1230" y="823">Open WebSocket</text>
-
-    <polygon class="decision" points="1230,885 1360,940 1230,995 1100,940" />
-    <text class="node-text" x="1230" y="946">Handshake succeeded?</text>
-
-    <rect class="node" x="1360" y="1030" width="280" height="90" rx="14" />
-    <text class="node-text" x="1500" y="1064">
-      <tspan x="1500">Cancel WebSocket handshake</tspan>
-      <tspan class="small" x="1500" dy="22">stop/close before handshake completes</tspan>
-    </text>
-
-    <rect class="node" x="1010" y="1160" width="440" height="72" rx="14" />
-    <text class="node-text" x="1230" y="1203">Receive and dispatch messages</text>
-
-    <polygon class="decision" points="1230,1270 1380,1330 1230,1390 1080,1330" />
-    <text class="node-text" x="1230" y="1336">What happens at runtime?</text>
-
-    <rect class="node" x="150" y="1510" width="300" height="110" rx="14" />
-    <text class="node-text" x="300" y="1550">
-      <tspan x="300">Reply to ping in the reader</tspan>
-      <tspan x="300" dy="24">Send System ACK, then continue</tspan>
-    </text>
-
-    <rect class="node" x="485" y="1510" width="330" height="110" rx="14" />
-    <text class="node-text" x="650" y="1550">
-      <tspan x="650">Run the business handler concurrently</tspan>
-      <tspan x="650" dy="24">Send protocol ACK when it completes</tspan>
-    </text>
-
-    <rect class="node" x="835" y="1510" width="330" height="110" rx="14" />
-    <text class="node-text" x="1000" y="1550">
-      <tspan x="1000">Cancel handlers from the old connection</tspan>
-      <tspan x="1000" dy="24">Enter the shared reconnect backoff</tspan>
-    </text>
-
-    <rect class="node" x="1180" y="1510" width="300" height="110" rx="14" />
-    <text class="node-text" x="1330" y="1550">
-      <tspan x="1330">Stop receiving new messages</tspan>
-      <tspan x="1330" dy="24">Wait for in-flight handlers</tspan>
-    </text>
-
-    <rect class="node" x="300" y="1700" width="420" height="90" rx="14" />
-    <text class="node-text" x="510" y="1737">
-      <tspan x="510">Shared exponential backoff</tspan>
-      <tspan class="small" x="510" dy="23">Registration, handshake, or connection failure</tspan>
-    </text>
-
-    <polygon class="decision" points="510,1850 670,1910 510,1970 350,1910" />
-    <text class="node-text" x="510" y="1905">
-      <tspan x="510">Was stop/close requested</tspan>
-      <tspan x="510" dy="22">during backoff?</tspan>
-    </text>
-
-    <polygon class="decision" points="1330,1690 1480,1750 1330,1810 1180,1750" />
-    <text class="node-text" x="1330" y="1735">
-      <tspan x="1330">Do handlers finish within</tspan>
-      <tspan x="1330" dy="22">shutdown_timeout</tspan>
-      <tspan x="1330" dy="22">(30 s by default)?</tspan>
-    </text>
-
-    <rect class="node" x="730" y="1840" width="340" height="80" rx="14" />
-    <text class="node-text" x="900" y="1888">Cancel unfinished handlers</text>
-
-    <rect class="node" x="650" y="2180" width="500" height="90" rx="14" />
-    <text class="node-text" x="900" y="2217">
-      <tspan x="900">Close WebSocket if open</tspan>
-      <tspan x="900" dy="24">Close the SDK-owned HTTP client</tspan>
-    </text>
-
-    <circle class="terminal" cx="900" cy="2360" r="38" />
-    <text class="node-text" x="900" y="2366">End</text>
+  <g id="create" text-anchor="middle">
+    <rect class="node" x="750" y="135" width="500" height="80" rx="16" />
+    <text class="node-text" x="1000" y="183">Create StreamClient</text>
   </g>
+  <g id="handlers" text-anchor="middle">
+    <rect class="node" x="750" y="245" width="500" height="80" rx="16" />
+    <text class="node-text" x="1000" y="293">Register message handlers</text>
+  </g>
+  <g id="launch" text-anchor="middle">
+    <rect class="node" x="650" y="355" width="700" height="80" rx="16" />
+    <text class="node-text" x="1000" y="403">Start the client in the background with start()</text>
+  </g>
+  <g id="register" text-anchor="middle">
+    <rect class="node" x="750" y="505" width="500" height="90" rx="16" />
+    <text class="node-text" x="1000" y="558">Register and request a fresh ticket</text>
+  </g>
+  <g id="cancel-register" text-anchor="middle">
+    <rect class="node" x="1350" y="500" width="500" height="100" rx="16" />
+    <text class="node-text" x="1600" y="542.5">Cancel pending registration</text>
+    <text class="small" x="1600" y="573.5">stop() / close() during registration</text>
+  </g>
+  <g id="registered" text-anchor="middle">
+    <polygon class="decision" points="1000,645 1200,710 1000,775 800,710" />
+    <text class="node-text" x="1000" y="718">Registration succeeded?</text>
+  </g>
+  <g id="connect" text-anchor="middle">
+    <rect class="node" x="770" y="825" width="460" height="90" rx="16" />
+    <text class="node-text" x="1000" y="878">Open WebSocket</text>
+  </g>
+  <g id="cancel-connect" text-anchor="middle">
+    <rect class="node" x="1350" y="887.5" width="500" height="125" rx="16" />
+    <text class="node-text" x="1600" y="927">Cancel pending handshake</text>
+    <text class="small" x="1600" y="958">stop() / close() during handshake</text>
+    <text class="small" x="1600" y="989">Close the connection if already established</text>
+  </g>
+  <g id="connected" text-anchor="middle">
+    <polygon class="decision" points="1000,965 1200,1030 1000,1095 800,1030" />
+    <text class="node-text" x="1000" y="1038">Handshake succeeded?</text>
+  </g>
+  <g id="receive" text-anchor="middle">
+    <rect class="node" x="775" y="1145" width="450" height="90" rx="16" />
+    <text class="node-text" x="1000" y="1198">Receive messages (reader loop)</text>
+  </g>
+  <g id="runtime" text-anchor="middle">
+    <polygon class="decision" points="1000,1270 1250,1340 1000,1410 750,1340" />
+    <text class="node-text" x="1000" y="1348">What happens at runtime?</text>
+  </g>
+  <g id="ping" text-anchor="middle">
+    <rect class="node" x="135" y="1510" width="410" height="160" rx="16" />
+    <text class="node-text" x="340" y="1582.5">Reply to ping in the reader</text>
+    <text class="node-text" x="340" y="1613.5">Echo opaque data</text>
+  </g>
+  <g id="business" text-anchor="middle">
+    <rect class="node" x="565" y="1510" width="450" height="160" rx="16" />
+    <text class="node-text" x="790" y="1551.5">Create and track an SDK dispatch task</text>
+    <text class="node-text" x="790" y="1582.5">Reader continues receiving</text>
+    <text class="small" x="790" y="1613.5">Task calls / awaits the handler</text>
+    <text class="small" x="790" y="1644.5">Returned Ack: try sending on its original socket</text>
+  </g>
+  <g id="disconnect" text-anchor="middle">
+    <rect class="node" x="1025" y="1510" width="410" height="160" rx="16" />
+    <text class="node-text" x="1230" y="1582.5">Keep in-flight SDK dispatch tasks</text>
+    <text class="node-text" x="1230" y="1613.5">Close old socket; reconnect</text>
+  </g>
+  <g id="stop" text-anchor="middle">
+    <rect class="node" x="1475" y="1510" width="410" height="160" rx="16" />
+    <text class="node-text" x="1680" y="1582.5">Stop receiving new messages</text>
+    <text class="node-text" x="1680" y="1613.5">Enter shared cleanup</text>
+  </g>
+  <g id="backoff" text-anchor="middle">
+    <rect class="node" x="220" y="1850" width="560" height="100" rx="16" />
+    <text class="node-text" x="500" y="1892.5">Shared exponential backoff with jitter</text>
+    <text class="small" x="500" y="1923.5">Registration, handshake, or connection failure</text>
+  </g>
+  <g id="backoff-stop" text-anchor="middle">
+    <polygon class="decision" points="500,2010 700,2080 500,2150 300,2080" />
+    <text class="small" x="500" y="2072.5">Stop requested</text>
+    <text class="small" x="500" y="2103.5">during backoff?</text>
+  </g>
+  <g id="cleanup" text-anchor="middle">
+    <rect class="node" x="1150" y="2240" width="600" height="120" rx="16" />
+    <text class="node-text" x="1450" y="2277">Shared cleanup: stop receiving new messages</text>
+    <text class="small" x="1450" y="2308">Drain all in-flight SDK dispatch tasks, including ACK sends</text>
+    <text class="small" x="1450" y="2339">Includes tasks left over from previous connections</text>
+  </g>
+  <g id="drained" text-anchor="middle">
+    <polygon class="decision" points="1450,2400 1720,2490 1450,2580 1180,2490" />
+    <text class="small" x="1450" y="2467">Do SDK dispatch tasks finish</text>
+    <text class="small" x="1450" y="2498">within shutdown_timeout?</text>
+    <text class="small" x="1450" y="2529">(default: 30 s)</text>
+  </g>
+  <g id="cancel" text-anchor="middle">
+    <rect class="node" x="750" y="2630" width="500" height="100" rx="16" />
+    <text class="node-text" x="1000" y="2657">Request cancellation of remaining tasks</text>
+    <text class="small" x="1000" y="2688">Wait briefly for cooperative cancellation</text>
+    <text class="small" x="1000" y="2719">Log tasks still pending; continue cleanup</text>
+  </g>
+  <g id="resources" text-anchor="middle">
+    <rect class="node" x="1150" y="2780" width="600" height="120" rx="16" />
+    <text class="node-text" x="1450" y="2832.5">Close WebSocket if still present</text>
+    <text class="node-text" x="1450" y="2863.5">Close the SDK-owned HTTP client</text>
+  </g>
+  <g id="end" text-anchor="middle">
+    <rect class="terminal" x="1240" y="2965" width="420" height="70" rx="35" />
+    <text class="node-text" x="1450" y="3008">Client shutdown complete</text>
+  </g>
+  <g id="ownership" text-anchor="middle">
+    <rect class="note" x="150" y="2345" width="700" height="250" rx="16" />
+    <text class="node-text" x="500" y="2385">Application background work: separate lifecycle</text>
+    <text class="small" x="500" y="2416">Tasks created by handlers are outside the SDK task set.</text>
+    <text class="small" x="500" y="2447">The application manages their waiting and cancellation.</text>
+    <text class="small" x="500" y="2478">The example exits TaskGroup after client.close().</text>
+    <text class="small" x="500" y="2509">On normal exit, TaskGroup waits for its business tasks.</text>
+    <text class="small" x="500" y="2540">Business resources should be released after those tasks finish.</text>
+    <text class="small" x="500" y="2571">An exceptional / cancelled TaskGroup exit cancels tasks.</text>
+  </g>
+  <text class="small" x="1450" y="3070" text-anchor="middle">shutdown_timeout limits draining only; cancellation and resource cleanup take additional time.</text>
 </svg>

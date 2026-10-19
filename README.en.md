@@ -13,11 +13,10 @@
 
 - Registers a Stream connection over HTTP and opens a persistent WebSocket using a single-use ticket.
 - By default, subscribes to all events configured in the Developer Console and bot message callbacks; custom topics can be configured with `Subscription` objects.
-- Supports synchronous and asynchronous handlers per topic, with `*` available as a fallback handler; up to 100 business messages are processed concurrently by default, configurable with `max_concurrent_handlers`.
-- Creates and sends protocol ACKs automatically; successful event handling returns `SUCCESS`, while failed handling returns `LATER`.
+- Supports asynchronous handlers per topic, with `*` available as a fallback handler.
 - Responds to system `ping` messages and requests a fresh ticket to reconnect after `disconnect` notices or connection failures; reconnection uses exponential backoff with jitter.
 - Supports starting the client in the background with `start()`.
-- Keeps system pings responsive independently of business handlers. During graceful shutdown, waits up to `shutdown_timeout` for in-flight messages, then cancels unfinished handlers and releases resources.
+- During graceful shutdown, waits up to `shutdown_timeout` for directly awaited async handlers, then cancels unfinished dispatch tasks and releases resources.
 - Allows a custom logger instance to be injected.
 
 ## Installation
@@ -42,7 +41,7 @@ pip install dingtalk-open-stream
 
 ## Receive bot messages and events
 
-Create a client and register handlers for bot messages and events. See [Lifecycle and graceful shutdown](#lifecycle-and-graceful-shutdown) below for how to start and gracefully stop it.
+Use an `async def` handler to submit work to an application-managed background task and immediately return `Ack.ok()`. The SDK then sends the response while the asynchronous business work runs independently. The example below uses `TaskGroup` to manage background tasks; add asynchronous business logic at the `TODO` placeholder. See [Lifecycle and graceful shutdown](#lifecycle-and-graceful-shutdown) below for how to start and gracefully stop the client.
 
 ```python
 import asyncio
@@ -56,35 +55,43 @@ logging.basicConfig(level=logging.INFO)
 
 async def main() -> None:
     app_logger = logging.getLogger("my-app.dingtalk-stream")
-    client = StreamClient(
-        client_id="your-app-client-id",
-        client_secret="your-app-client-secret",
-        logger=app_logger,
-    )
 
-    async def on_bot_message(message: Message) -> Ack:
-        print(message.data)
-        return Ack.ok()
+    async with asyncio.TaskGroup() as background:
+        client = StreamClient(
+            client_id="your-app-client-id",
+            client_secret="your-app-client-secret",
+            logger=app_logger,
+        )
 
-    async def on_event(message: Message) -> Ack:
-        print(message.headers.get("eventType"), message.data)
-        return Ack.ok()
-
-    client.on("/v1.0/im/bot/messages/get", on_bot_message)
-    client.on("*", on_event)
-
-    loop = asyncio.get_running_loop()
-    stopping = asyncio.Event()
-    try:
-        for sig in (signal.SIGINT, signal.SIGTERM):
+        async def process_message(message: Message) -> None:
             try:
-                loop.add_signal_handler(sig, stopping.set)
-            except NotImplementedError:  # Some Windows event loops do not support this API.
+                # TODO: do something with message.data.
                 pass
-        await client.start()
-        await stopping.wait()
-    finally:
-        await client.close()
+            except Exception:
+                app_logger.exception(
+                    "Background business processing failed, message_id=%s",
+                    message.message_id,
+                )
+
+        async def on_message(message: Message) -> Ack:
+            background.create_task(process_message(message))
+            return Ack.ok()
+
+        client.on("/v1.0/im/bot/messages/get", on_message)
+        client.on("*", on_message)
+
+        loop = asyncio.get_running_loop()
+        stopping = asyncio.Event()
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(sig, stopping.set)
+                except NotImplementedError:  # Some Windows event loops do not support this API.
+                    pass
+            await client.start()
+            await stopping.wait()
+        finally:
+            await client.close()
 
 
 asyncio.run(main())
@@ -133,7 +140,7 @@ By default, the client subscribes to all events configured in the DingTalk Devel
 
 `Topic` is a public type alias for topic strings. `client.on()` provides type hints for `*`, the bot message callback, and the card callback; `KnownTopic` describes those known options while custom string topics remain accepted.
 
-Register a message handler with `client.on(topic, handler)`. Use `*` as a fallback for unmatched topics. Handlers may be synchronous or asynchronous and can return `Ack.ok(...)` or `Ack.later(...)`. Business handlers run with bounded concurrency, capped at 100 by default; adjust this with `max_concurrent_handlers`. When the limit is reached, the SDK responds with a `LATER` ACK. Because handlers run concurrently, completion order across messages is not guaranteed to match receive order. On successful event handling, the SDK replies with an ACK containing `status: SUCCESS`. If a handler raises an exception, the SDK logs it and replies with `status: LATER` so DingTalk can retry the event.
+Register a message handler with `client.on(topic, handler)`. Use `*` as a fallback for unmatched topics. A handler must return an `Ack`, which the SDK sends immediately. Follow the example above by submitting background work and returning quickly; the application manages asynchronous business work and failure recovery. EVENT messages may be redelivered, so business processing can use `eventId` for idempotency.
 
 ## Lifecycle and graceful shutdown
 
@@ -141,11 +148,13 @@ Register a message handler with `client.on(topic, handler)`. Use `*` as a fallba
 
 Call `await client.start()` to launch the connection and reconnection loop in the background. The client requests a fresh ticket for each connection, reconnects with exponential backoff, responds to `ping`, and reconnects after receiving the server's `disconnect` notice. Each client can be started only once.
 
+In-flight async handlers continue running during connection failures and normal connection rotation. Cancelling a task waiting on `wait_closed()` does not stop the background client; cancelling a task waiting on `stop()` or `close()` does not interrupt the shutdown and cleanup already requested.
+
 ![Client lifecycle flowchart](https://raw.githubusercontent.com/luyifo/dingtalk-open-stream/main/docs/lifecycle.en.svg)
 
 ### Graceful shutdown
 
-When the application detects that it should exit, call `await client.close()` in its cleanup path. The client stops receiving new messages, waits up to `shutdown_timeout` seconds for in-flight handlers, cancels any that remain, closes the WebSocket, and releases the SDK-owned HTTP client. `shutdown_timeout` defaults to 30 seconds and can be changed when creating `StreamClient`. `close()` is safe to call more than once. `stop()` also requests shutdown and waits for cleanup; `close()` is generally the method to use when the application exits.
+When the application detects that it should exit, call `await client.close()` in its cleanup path. The client stops receiving new messages, waits up to `shutdown_timeout` seconds for directly awaited async handlers, cancels these dispatch tasks if they time out, closes the WebSocket, and releases the SDK-owned HTTP client. This wait does not include background tasks created by the application. In the example above, the client closes before the application exits `TaskGroup`; on normal exit, the group waits for background work. `shutdown_timeout` defaults to 30 seconds and can be changed when creating `StreamClient`. `close()` is safe to call more than once. `stop()` also requests shutdown and waits for cleanup; `close()` is generally the method to use when the application exits.
 
 The two options below differ in how they detect the exit condition; the client's shutdown sequence is the same.
 
@@ -216,4 +225,4 @@ Both options perform the same shutdown actions; they differ in what triggers exi
 
 ## Examples
 
-FastAPI example: [Using in FastAPI](https://github.com/luyifo/dingtalk-open-stream/blob/main/examples/fastapi_app.py). 
+FastAPI example: [Using in FastAPI](https://github.com/luyifo/dingtalk-open-stream/blob/main/examples/fastapi_app.py). Set `DINGTALK_CLIENT_ID` and `DINGTALK_CLIENT_SECRET` before running it.

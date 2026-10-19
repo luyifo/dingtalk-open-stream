@@ -21,7 +21,7 @@ from websockets.exceptions import ConnectionClosed
 from .models import Ack, KnownTopic, Message, Subscription, Topic
 
 logger = logging.getLogger(__name__)
-MessageHandler = Callable[[Message], Ack | Awaitable[Ack | None] | None]
+MessageHandler = Callable[[Message], Ack | Awaitable[Ack]]
 
 
 class LoggerLike(Protocol):
@@ -78,19 +78,23 @@ class StreamClient:
         local_ip: str | None = None,
         reconnect_min_delay: float = 1.0,
         reconnect_max_delay: float = 30.0,
-        max_concurrent_handlers: int = 100,
         shutdown_timeout: float = 30.0,
     ) -> None:
-        """初始化客户端配置、HTTP 资源、日志实例和运行状态。
+        """初始化配置和 HTTP 客户端；调用 ``start`` 后才发起连接。
 
-        Initialize client settings, HTTP resources, logger, and lifecycle state.
+        ``subscriptions=None`` 使用默认订阅，空迭代器则表示不订阅任何主题。
+        重连延迟和 ``shutdown_timeout`` 均以秒计；后者仅限制 SDK 分发任务
+        的完成等待时间，取消与资源释放还需要额外时间。
+
+        Initialize settings and the HTTP client; connections begin only on ``start``.
+        ``subscriptions=None`` selects defaults; an empty iterable subscribes to nothing.
+        Reconnect delays and ``shutdown_timeout`` are in seconds. The shutdown timeout
+        bounds the handler drain phase, with cancellation and resource cleanup afterward.
         """
         if not client_id or not client_secret:
             raise ValueError("client_id and client_secret are required")
         if reconnect_min_delay <= 0 or reconnect_max_delay < reconnect_min_delay:
             raise ValueError("Invalid reconnect delay range")
-        if max_concurrent_handlers < 1:
-            raise ValueError("max_concurrent_handlers must be at least 1")
         if shutdown_timeout <= 0:
             raise ValueError("shutdown_timeout must be positive")
         self.client_id = client_id
@@ -102,11 +106,12 @@ class StreamClient:
         self.local_ip = local_ip
         self.reconnect_min_delay = reconnect_min_delay
         self.reconnect_max_delay = reconnect_max_delay
-        self.max_concurrent_handlers = max_concurrent_handlers
         self.shutdown_timeout = shutdown_timeout
         self._http = httpx.AsyncClient(timeout=httpx.Timeout(15.0))
         self._logger = logger if logger is not None else logging.getLogger(__name__)
         self._handlers: dict[str, MessageHandler] = {}
+        # 跨重连保留分发任务的引用，关闭时统一等待；不包含应用创建的后台任务。
+        # Retain dispatch tasks across reconnects for shutdown; user tasks aren't tracked.
         self._handler_tasks: set[asyncio.Task[None]] = set()
         self._send_lock = asyncio.Lock()
         self._stop_event = asyncio.Event()
@@ -121,9 +126,16 @@ class StreamClient:
     def on(self, topic: Topic, handler: MessageHandler) -> StreamClient: ...
 
     def on(self, topic: str, handler: MessageHandler) -> StreamClient:
-        """注册 topic 处理器；``*`` 用于处理未匹配的消息。
+        """注册处理器；同一 topic 重复注册会覆盖，精确匹配优先于 ``*``。
 
-        Register a topic handler; ``*`` handles otherwise-unmatched messages.
+        处理器在客户端事件循环中执行，须返回 Ack 或可等待的 Ack 结果。
+        同步处理器也不会自动进入线程池，阻塞业务应由应用自行调度。
+        此方法只配置本地分发，不修改向服务端注册的订阅。
+
+        Register a handler, replacing any existing handler for the same topic.
+        Exact topics take precedence over ``*``. Handlers run on the client event loop
+        and must return Ack or an awaitable resolving to Ack; synchronous handlers
+        aren't offloaded to threads. Registration doesn't change server subscriptions.
         """
         self._handlers[topic] = handler
         return self
@@ -131,7 +143,10 @@ class StreamClient:
     async def start(self) -> None:
         """在后台启动连接和重连；此方法只能调用一次。
 
+        返回时不保证注册或握手已完成，不能作为连接就绪信号。
+
         Start reconnecting in the background; call only once.
+        Returning doesn't guarantee registration or the WebSocket handshake is complete.
         """
         if self._closed or self._stop_event.is_set():
             raise RuntimeError("StreamClient is closed")
@@ -141,21 +156,29 @@ class StreamClient:
         self._logger.debug("DingTalk Stream client started")
 
     async def wait_closed(self) -> None:
-        """等待客户端停止并释放资源。
+        """等待已有运行或清理任务结束；尚未启动时立即返回。
 
-        Wait until the client has stopped and released its resources.
+        本方法不请求停止，取消等待也不会取消共享的后台任务。
+
+        Wait for an existing runner or cleanup task; return immediately before start.
+        This doesn't request shutdown, and cancelling the waiter leaves shared work running.
         """
         if self._runner is None:
             self._logger.debug("wait_closed called before the Stream client was started")
             return
         self._logger.debug("Waiting for the DingTalk Stream client to stop")
-        await self._runner
+        await asyncio.shield(self._runner)
         self._logger.debug("DingTalk Stream client has stopped")
 
     async def stop(self) -> None:
-        """请求优雅关闭，并等待处理器结束和资源释放。
+        """请求永久停止；通常等待处理器结束和资源释放，可重复调用。
 
-        Request graceful shutdown and wait for handlers and resources to finish.
+        从 SDK 分发的处理器内部调用时，只发送停止信号并立即返回，
+        避免处理器与等待它结束的清理任务互相等待。
+
+        Request permanent shutdown; normally wait for handlers and cleanup. Safe to repeat.
+        Calls from a dispatched handler only signal shutdown and return, avoiding a
+        deadlock with cleanup waiting for that same handler to finish.
         """
         self._logger.debug("Stop requested for the DingTalk Stream client")
         self._stop_event.set()
@@ -165,10 +188,16 @@ class StreamClient:
             )
             return
         runner = self._runner
-        if runner is not None and runner is not asyncio.current_task():
-            await runner
-        elif runner is None:
-            await self._cleanup()
+        if runner is None:
+            # Share cleanup even when close() is called before start().
+            # 即使尚未启动，也让所有关闭调用共享同一个清理任务。
+            runner = self._runner = asyncio.create_task(
+                self._cleanup(), name="dingtalk-stream-cleanup"
+            )
+        if runner is not asyncio.current_task():
+            # 取消某个关闭调用的等待，不应中断其他调用共享的清理流程。
+            # Cancelling one shutdown waiter must not cancel shared cleanup.
+            await asyncio.shield(runner)
         self._logger.debug("DingTalk Stream client stopped")
 
     async def close(self) -> None:
@@ -202,16 +231,22 @@ class StreamClient:
                     if websocket is None:
                         break
                     self._websocket = websocket
+                    # 连接成功后重置退避；即使随后立即断线，也从最短延迟重试。
+                    # Reset backoff after connecting, even if this socket soon disconnects.
                     delay = self.reconnect_min_delay
                     try:
                         await self._serve_connection(websocket)
                     finally:
-                        try:
-                            await websocket.close()
-                        except Exception:
-                            self._logger.exception(
-                                "Error while closing DingTalk Stream websocket"
-                            )
+                        # Keep the socket available for returned ACKs while shutdown
+                        # waits for handlers; cleanup closes it after they finish.
+                        # 关闭流程保留连接以回复 ACK，处理器结束后再由清理任务关闭。
+                        if not self._stop_event.is_set():
+                            try:
+                                await websocket.close()
+                            except Exception:
+                                self._logger.exception(
+                                    "Error while closing DingTalk Stream websocket"
+                                )
                 except asyncio.CancelledError:
                     raise
                 except _ReconnectRequested:
@@ -223,7 +258,8 @@ class StreamClient:
                     if not self._stop_event.is_set():
                         self._logger.exception("Unexpected DingTalk Stream client error")
                 finally:
-                    self._websocket = None
+                    if not self._stop_event.is_set():
+                        self._websocket = None
                 if self._stop_event.is_set():
                     break
                 # 加入随机抖动，避免多个副本同时重连。
@@ -251,6 +287,8 @@ class StreamClient:
             done, _ = await asyncio.wait(
                 (register_task, stop_task), return_when=asyncio.FIRST_COMPLETED
             )
+            # 同轮完成时优先停止，避免关闭期间继续发起 WebSocket 握手。
+            # Prefer shutdown if both finish together, avoiding a new handshake.
             if stop_task in done or self._stop_event.is_set():
                 if not register_task.done():
                     register_task.cancel()
@@ -296,6 +334,8 @@ class StreamClient:
                     connect_task.cancel()
                 result = await asyncio.gather(connect_task, return_exceptions=True)
                 websocket = result[0]
+                # 握手可能恰好完成；即使不再接收消息，也必须释放已建立的连接。
+                # A racing handshake may have succeeded; close that unused socket too.
                 if isinstance(websocket, ClientConnection):
                     await websocket.close()
                 return None
@@ -358,110 +398,110 @@ class StreamClient:
 
         Read and dispatch connection messages while watching for shutdown.
         """
-        cancelled = False
-        try:
-            while not self._stop_event.is_set():
-                receive_task = asyncio.create_task(websocket.recv())
-                stop_task = asyncio.create_task(self._stop_event.wait())
-                tasks = (receive_task, stop_task)
-                try:
-                    done, _ = await asyncio.wait(
-                        tasks, return_when=asyncio.FIRST_COMPLETED
-                    )
-                    if stop_task in done or self._stop_event.is_set():
-                        return
-                    payload = receive_task.result()
-                finally:
-                    for task in tasks:
-                        if not task.done():
-                            task.cancel()
-                    await asyncio.gather(*tasks, return_exceptions=True)
-
-                if self._stop_event.is_set():
-                    return
-
-                try:
-                    message = Message.from_payload(payload)
-                except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-                    self._logger.exception("Ignoring malformed DingTalk Stream message")
-                    continue
-
-                # SYSTEM messages stay on the reader so ping is answered promptly.
-                # 系统消息在读取循环中直接处理，确保 ping 能及时响应。
-                if message.type == "SYSTEM":
-                    await self._handle_message(websocket, message)
-                    continue
-
-                if len(self._handler_tasks) >= self.max_concurrent_handlers:
-                    self._logger.warning(
-                        f"DingTalk Stream handler limit reached; deferring topic {message.topic}"
-                    )
-                    await self._send_ack(
-                        websocket,
-                        message,
-                        Ack.later("handler capacity reached"),
-                    )
-                    continue
-
-                task = asyncio.create_task(
-                    self._handle_message(websocket, message),
-                    name=f"dingtalk-stream-handler-{message.topic or 'unknown'}",
+        # Await handlers independently of the reader so async handlers cannot
+        # delay SYSTEM messages. Application-created tasks remain user-owned.
+        # 独立等待异步处理器，确保系统消息仍被读取；应用自建任务由使用者管理。
+        while not self._stop_event.is_set():
+            receive_task = asyncio.create_task(websocket.recv())
+            stop_task = asyncio.create_task(self._stop_event.wait())
+            tasks = (receive_task, stop_task)
+            try:
+                done, _ = await asyncio.wait(
+                    tasks, return_when=asyncio.FIRST_COMPLETED
                 )
-                self._handler_tasks.add(task)
-                task.add_done_callback(self._handler_done)
-        except asyncio.CancelledError:
-            cancelled = True
-            raise
-        finally:
-            # Drain handlers only for an intentional shutdown; a lost connection must reconnect promptly.
-            # 仅在主动关闭时等待处理器；连接失效时应尽快重连。
-            if not cancelled:
-                if self._stop_event.is_set():
-                    await self._wait_for_handlers()
-                else:
-                    await self._cancel_handlers()
+                if stop_task in done or self._stop_event.is_set():
+                    return
+                payload = receive_task.result()
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _handle_message(self, websocket: ClientConnection, message: Message) -> None:
-        """处理已解析的消息并回复 ACK。 / Process a parsed message and send its ACK."""
-
-        topic = message.topic or ""
-        if message.type == "SYSTEM":
-            if topic == "disconnect":
-                self._logger.info(f"DingTalk requested Stream disconnect: {message.data}")
-                raise _ReconnectRequested
-            if topic == "ping":
-                data = message.data
-                await self._send_ack(websocket, message, Ack.ok(data))
+            if self._stop_event.is_set():
                 return
 
+            try:
+                message = Message.from_payload(payload)
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                self._logger.exception("Ignoring malformed DingTalk Stream message")
+                continue
+
+            # SYSTEM messages stay on the reader so ping is answered promptly.
+            # 系统消息在读取循环中直接处理，确保 ping 能及时响应。
+            if message.type == "SYSTEM":
+                await self._handle_system_message(websocket, message)
+                continue
+
+            task = asyncio.create_task(
+                # 绑定消息来源连接，重连后的旧处理器不能向新连接发送 ACK。
+                # Bind the source socket so a late ACK never uses a replacement socket.
+                self._dispatch_message(websocket, message),
+                name=f"dingtalk-stream-handler-{message.topic or 'unknown'}",
+            )
+            self._handler_tasks.add(task)
+            task.add_done_callback(self._handler_done)
+
+    async def _handle_system_message(
+        self, websocket: ClientConnection, message: Message
+    ) -> None:
+        """处理系统推送。 / Automatically handle system messages only."""
+        topic = message.topic or ""
+        if topic == "disconnect":
+            self._logger.info(f"DingTalk requested Stream disconnect: {message.data}")
+            raise _ReconnectRequested
+        if topic == "ping":
+            await self._send_ack(websocket, message, Ack.ok(message.data))
+            return
+        self._logger.warning(f"Ignoring unknown DingTalk Stream system topic {topic!r}")
+
+    async def _dispatch_message(self, websocket: ClientConnection, message: Message) -> None:
+        """调用快速处理器并发送其返回的 ACK；后台业务由使用者管理。
+
+        Invoke a short handler and send its returned ACK; background work is user-owned.
+        """
+        topic = message.topic or ""
         handler = self._handlers.get(topic) or self._handlers.get("*")
         if handler is None:
-            ack = Ack.later(f"No handler registered for topic {topic!r}")
-        else:
-            try:
-                result = handler(message)
-                if isawaitable(result):
-                    result = await result
-                ack = result if isinstance(result, Ack) else Ack.ok()
-                if message.type == "EVENT" and ack.success:
-                    data = ack.data if isinstance(ack.data, dict) else {"result": ack.data}
-                    data = {**data, "status": "SUCCESS", "message": ack.message}
-                    ack = Ack(True, ack.message, data)
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                self._logger.exception(f"DingTalk Stream handler failed for topic {topic}")
-                ack = Ack.later(str(exc) or "internal error")
-        await self._send_ack(websocket, message, ack)
+            # 未注册处理器或处理器失败时不合成 ACK，确认结果由业务显式返回。
+            # Missing or failed handlers don't synthesize ACKs; handlers decide the result.
+            self._logger.warning(f"No handler registered for DingTalk topic {topic!r}")
+            return
+        try:
+            result = handler(message)
+            if isawaitable(result):
+                result = await result
+            if not isinstance(result, Ack):
+                raise TypeError(
+                    f"DingTalk Stream handler must return Ack, got {type(result).__name__}"
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self._logger.exception(f"DingTalk Stream handler failed for topic {topic}")
+            return
+        # The handler accepts or rejects the message by returning an ACK.
+        # Never wait for application-created background tasks before sending it.
+        # 处理器返回 ACK 即可确认接收结果，不等待应用自行创建的后台业务任务。
+        await self._send_ack(websocket, message, result)
 
     async def _send_ack(self, websocket: ClientConnection, message: Message, ack: Ack) -> None:
-        """将业务 ACK 序列化并通过 WebSocket 返回钉钉。
+        """序列化 ACK 并通过指定连接发送，不决定业务确认时机。
 
-        Serialize the application ACK and send it to DingTalk over WebSocket.
+        Serialize and send an ACK on its socket without deciding business ACK timing.
         """
         if not message.message_id:
-            self._logger.warning("Cannot ACK DingTalk message without headers.messageId")
-            return
+            raise ValueError("Cannot ACK DingTalk message without headers.messageId")
+        data = ack.data
+        if message.type == "EVENT":
+            # EVENT 确认补齐状态字段；同名业务字段以 Ack 的确认结果为准。
+            # EVENT ACKs add status fields, overriding conflicting business values.
+            data = data if isinstance(data, dict) else {"result": data}
+            data = {
+                **data,
+                "status": "SUCCESS" if ack.success else "LATER",
+                "message": ack.message,
+            }
         code = 200 if ack.success else 500
         response = {
             "code": code,
@@ -470,14 +510,22 @@ class StreamClient:
                 "messageId": message.message_id,
                 "contentType": "application/json",
             },
-            "data": json.dumps(ack.data, ensure_ascii=False, separators=(",", ":")),
+            # 外层帧中的 data 是 JSON 字符串，需要先序列化，再编码整个响应帧。
+            # The outer frame's data is a JSON string, so encode it before the frame.
+            "data": json.dumps(data, ensure_ascii=False, separators=(",", ":")),
         }
+        # 系统消息与业务处理器共享发送锁，每个 ACK 作为完整帧依次写入。
+        # Serialize complete ACK writes from both system messages and business handlers.
         async with self._send_lock:
             await websocket.send(
                 json.dumps(response, ensure_ascii=False, separators=(",", ":"))
             )
 
     def _handler_done(self, task: asyncio.Task[None]) -> None:
+        """移除已完成的分发任务并读取异常，避免后台异常无人处理。
+
+        Release completed dispatch tasks and retrieve their exceptions for logging.
+        """
         self._handler_tasks.discard(task)
         if task.cancelled():
             return
@@ -486,6 +534,11 @@ class StreamClient:
             self._logger.error(f"DingTalk Stream handler task failed: {error!r}")
 
     async def _wait_for_handlers(self) -> None:
+        """限时等待在途分发任务，再取消超时任务；不等待应用后台业务。
+
+        Drain in-flight dispatch tasks with a deadline, then cancel overdue tasks.
+        Application-created background work isn't included.
+        """
         tasks = set(self._handler_tasks)
         if not tasks:
             return
@@ -536,6 +589,9 @@ class StreamClient:
         """
         self._logger.debug("Cleaning up DingTalk Stream client resources")
         self._stop_event.set()
+        # 先停止接收并等待 ACK，再关闭连接；再次取消仍未退出的分发任务。
+        # Stop intake and drain ACKs before closing the socket; retry remaining cancellations.
+        await self._wait_for_handlers()
         await self._cancel_handlers()
         if self._websocket is not None:
             try:
