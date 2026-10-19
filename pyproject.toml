@@ -1,6 +1,6 @@
 [project]
 name = "dingtalk-open-stream"
-version = "0.1.5"
+version = "0.1.6"
 description = "Async DingTalk Stream Mode client for Python 3.12"
 readme = "README.md"
 requires-python = ">=3.12"
